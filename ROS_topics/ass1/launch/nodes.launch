@@ -1,0 +1,11 @@
+<launch>
+
+	<!--Run fake_sensor.py -->
+	<node name="fake_sensor" pkg="ass1" type="fake_sensor.py" output="screen">
+	</node>
+
+	<!--Run data_processor.py -->
+	<node name="processor" pkg="ass1" type="data_processor.py" output="screen">
+	</node>
+
+</launch>
