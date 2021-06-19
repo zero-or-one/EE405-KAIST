@@ -15,9 +15,7 @@ from nav_msgs.msg import Odometry
 import tf
 from tf.transformations import euler_from_quaternion
 
-delta_v = [] # array for storing previous errors
-delta_y = []
-delta_yaw = []
+
 # Calculate distance
 def calc_dist(tx, ty, ix, iy):
     return math.sqrt( (tx-ix)**2 + (ty-iy)**2 )
@@ -102,6 +100,14 @@ class WaypointFollower():
         self.pub_command = rospy.Publisher('/control', AckermannDriveStamped, queue_size=5)
         self.sub_odom    = rospy.Subscriber('/simulation/bodyOdom', Odometry, self.callback_odom)
 
+        # storage terms
+        self.error_y_sum = 0
+        self.error_yaw_sum = 0
+        self.error_steer_prev = 0
+        self.error_v_sum = 0
+        self.error_v_prev = 0
+
+
     def callback_odom(self, msg):
         """
         Subscribe Odometry message
@@ -127,31 +133,31 @@ class WaypointFollower():
         kp_yaw = 0.3 # P gain w.r.t. yaw error
 
         # PI controller
-	# add new error values to history
-	delta_y.append(error_y)
-	delta_yaw.append(error_yaw)
-	# define proportional constants
-	kpi_y = 0 # 0.05 # uncomment for pi controller
-	kpi_yaw = 0 # 0.05 # uncomment for pi controller
-	# define integral terms in terms of sum
-	iterm_y = sum(delta_y)
-	iterm_yaw = sum(delta_yaw)
-	# the final result will be
-        steer = kp_y*error_y + kp_yaw*error_yaw + kpi_y*iterm_y + kpi_y*iterm_yaw
-        
-	# Pure pursuit method
-	L = 0.5 # length of car
-	l = 3
-	# uncomment line below to see its implementation
-	#steer = np.arctan(2*L*math.sin(error_yaw)/l)
 
-	# Stanley method
-	k = 1
-	# uncomment lines below for Stanley method
-	#if (v == 0):
-	#	steer = 0
-	#else:
-	#	steer = error_yaw + np.arctan(error_y/v)
+        # define proportional constants
+        ki_y = 0.05 # 0.05 # uncomment for pi controller
+        ki_yaw = 0.05 # 0.05 # uncomment for pi controller
+        kd = 0.03 # 0.05 # uncomment for pi controller
+        # define integral terms in terms of sum
+        self.error_y_sum += error_y
+        self.error_yaw_sum += error_yaw
+        # the final result will be
+        steer = kp_y*error_y + kp_yaw*error_yaw + ki_y*(self.error_y_sum) + ki_y*(self.error_yaw_sum) + kd*self.error_steer_prev
+        self.error_steer_prev = steer
+
+        # Pure pursuit method
+        #L = 0.5 # length of car
+        #l = 3
+        # uncomment line below to see its implementation
+        #steer = np.arctan(2*L*math.sin(error_yaw)/l)
+
+        # Stanley method
+        #k = 1
+        # uncomment lines below for Stanley method
+        #if (v == 0):
+        #	steer = 0
+        #else:
+        #	steer = error_yaw + np.arctan(error_y/v)
 
         # Control limit
         steer = np.clip(steer, -self.MAX_STEER, self.MAX_STEER)
@@ -163,14 +169,16 @@ class WaypointFollower():
         Speed control
         TODO-3: Tuning your speed controller (Currently, P controller is implemented.).
         """
-	# for P controller
+        # for P controller
         kp_v = 0.7
         # for PI controller
-	kpi_v = 0 #0.03 # uncomment for pi controller
-	delta_v.append(error_v)
-	iterm_v = sum(delta_v)
-	
-        return kp_v * error_v + kpi_v*iterm_v
+        ki_v = 0.03 #0.03 # uncomment for pi controller
+        kd = 0.03
+        self.error_v_sum += error_v
+        v_change = kp_v * error_v + ki_v*self.error_v_sum + kd*self.error_v_prev
+        self.error_v_prev = v_change
+
+        return v_change
 
     def publish_command(self, steer, accel):
         """
@@ -185,7 +193,7 @@ class WaypointFollower():
 def main():
     # Load Waypoint
     rospack = rospkg.RosPack()
-    WPT_CSV_PATH = rospack.get_path('waypoint_follower') + "/wpt_data/wpt_data_dense.csv"
+    WPT_CSV_PATH = rospack.get_path('waypoint_follower') + "/wpt_data/wpt_data_spare_edit.csv"
     csv_data = pd.read_csv(WPT_CSV_PATH, sep=',', header=None)
     wpts_x = csv_data.values[:,0]
     wpts_y = csv_data.values[:,1]
