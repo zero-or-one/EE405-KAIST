@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<launch>
+  <node pkg="scan_matching_localizer" type="scan_matching_localizer_node" name="scan_matching_localizer_node" output="screen">
+  </node>
+
+  <arg name="map_file" default="$(find scan_matching_localizer)/map/track_map.yaml"/>
+  <!-- Run the map server -->
+  <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" />
+
+</launch>
